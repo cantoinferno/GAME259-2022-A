@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GravityMovementComponent.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AGAME259_A_URECharacter
@@ -43,6 +44,7 @@ AGAME259_A_URECharacter::AGAME259_A_URECharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	DirectionalGravity = CreateDefaultSubobject<UDirectionalGravityComponent>(TEXT("Directional Gravity"));
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
 }
@@ -74,6 +76,39 @@ void AGAME259_A_URECharacter::SetupPlayerInputComponent(class UInputComponent* P
 
 	// VR headset functionality
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AGAME259_A_URECharacter::OnResetVR);
+}
+
+void AGAME259_A_URECharacter::CheckJumpInput(float DeltaTime)
+{
+	JumpCurrentCountPreJump = JumpCurrentCount;
+
+	if (GetCharacterMovement())
+	{
+		if (bPressedJump)
+		{
+			// If this is the first jump and we're already falling,
+			// then increment the JumpCount to compensate.
+			const bool bFirstJump = JumpCurrentCount == 0;
+			if (bFirstJump && GetCharacterMovement()->IsFalling())
+			{
+				JumpCurrentCount++;
+			}
+
+			const bool bDidJump = CanJump() && DirectionalGravity->DoJump(bClientUpdating);
+			if (bDidJump)
+			{
+				// Transition from not (actively) jumping to jumping.
+				if (!bWasJumping)
+				{
+					JumpCurrentCount++;
+					JumpForceTimeRemaining = GetJumpMaxHoldTime();
+					OnJumped();
+				}
+			}
+
+			bWasJumping = bDidJump;
+		}
+	}
 }
 
 
